@@ -250,12 +250,47 @@ def check_huarongdao() -> list[str]:
     return problems
 
 
+
+def run_js(folder: str, stdin_text: str) -> list[str]:
+    runner = SOLUTIONS / folder / "runner.js"
+    result = subprocess.run(["node", str(runner)], input=stdin_text, capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise SystemExit("%s failed: %s" % (folder, result.stderr.strip()))
+    return [line for line in result.stdout.replace("\r\n", "\n").split("\n") if line != ""]
+
+
+# ---------------------------------------------------------------------------
+# Super Functional Strings
+# ---------------------------------------------------------------------------
+def check_super_functional() -> list[str]:
+    """Enumerate every distinct substring and sum len^distinct directly."""
+    import random
+
+    random.seed(3)
+    cases = []
+    for length in range(1, 9):
+        for _ in range(4):
+            alphabet = random.randint(1, 3)
+            text = "".join(random.choice("abc"[:alphabet]) for _ in range(length))
+            cases.append(text)
+
+    problems = []
+    for text in cases:
+        actual = run_js("super-functional-strings", text + "\n")
+        substrings = {text[i:j] for i in range(len(text)) for j in range(i + 1, len(text) + 1)}
+        expected = sum(pow(len(sub), len(set(sub)), MOD) for sub in substrings) % MOD
+        if int(actual[0]) != expected:
+            problems.append("%r: expected %d, got %s" % (text, expected, actual[0]))
+    return problems
+
+
 CHECKS = [
     ("sherlock-and-permutations", check_sherlock),
     ("even-odd-query", check_even_odd),
     ("special-multiple", check_special_multiple),
     ("letter-islands", check_letter_islands),
     ("huarongdao", check_huarongdao),
+    ("super-functional-strings", check_super_functional),
 ]
 
 

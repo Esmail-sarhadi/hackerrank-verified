@@ -33,6 +33,10 @@ def normalise(text: str) -> list[str]:
     return lines
 
 
+def is_javascript(folder: pathlib.Path) -> bool:
+    return (folder / "solution.js").exists()
+
+
 def build(folder: pathlib.Path) -> tuple[bool, str]:
     result = subprocess.run(
         ["dotnet", "build", "-c", "Release", "--nologo", "-v", "quiet"],
@@ -65,8 +69,37 @@ def run(folder: pathlib.Path, stdin_text: str) -> tuple[bool, str, str]:
     return True, result.stdout, ""
 
 
+def run_node(folder: pathlib.Path, stdin_text: str) -> tuple[bool, str, str]:
+    runner = folder / "runner.js"
+    if not runner.exists():
+        return False, "", "missing runner.js"
+    try:
+        result = subprocess.run(
+            ["node", str(runner)], input=stdin_text, capture_output=True, text=True, timeout=RUN_TIMEOUT
+        )
+    except subprocess.TimeoutExpired:
+        return False, "", "timed out after %d s" % RUN_TIMEOUT
+    if result.returncode != 0:
+        return False, result.stdout, "exit code %d\n%s" % (result.returncode, result.stderr.strip())
+    return True, result.stdout, ""
+
+
 def check(folder: pathlib.Path) -> tuple[str, str]:
     """Returns (status, detail) where status is PASS, FAIL or SKIP."""
+    if is_javascript(folder):
+        required = ["solution.js", "runner.js", "sample.in", "sample.out"]
+        missing = [name for name in required if not (folder / name).exists()]
+        if missing:
+            return "SKIP", "missing " + ", ".join(missing)
+        stdin_text = (folder / "sample.in").read_text(encoding="utf-8")
+        expected = normalise((folder / "sample.out").read_text(encoding="utf-8"))
+        ok, stdout, error = run_node(folder, stdin_text)
+        if not ok:
+            return "FAIL", error
+        actual = normalise(stdout)
+        return ("PASS", "%d line(s)" % len(expected)) if actual == expected else (
+            "FAIL", "expected %r, got %r" % (expected, actual))
+
     required = ["Solution.cs", "solution.csproj", "sample.in", "sample.out"]
     missing = [name for name in required if not (folder / name).exists()]
     if missing:
@@ -103,6 +136,9 @@ def main() -> int:
 
     if shutil.which("dotnet") is None:
         print("dotnet is not on PATH; install the .NET SDK to run this", file=sys.stderr)
+        return 2
+    if shutil.which("node") is None:
+        print("node is not on PATH; install Node to run the JavaScript solutions", file=sys.stderr)
         return 2
 
     folders = sorted(p for p in SOLUTIONS.iterdir() if p.is_dir())
