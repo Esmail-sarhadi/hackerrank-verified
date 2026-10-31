@@ -125,10 +125,137 @@ def check_special_multiple() -> list[str]:
     return problems
 
 
+
+
+# ---------------------------------------------------------------------------
+# Letter Islands
+# ---------------------------------------------------------------------------
+def _islands(s: str, sub: str) -> int:
+    marked = [False] * len(s)
+    for start in range(len(s) - len(sub) + 1):
+        if s[start:start + len(sub)] == sub:
+            for offset in range(len(sub)):
+                marked[start + offset] = True
+    groups, previous = 0, False
+    for flag in marked:
+        if flag and not previous:
+            groups += 1
+        previous = flag
+    return groups
+
+
+def check_letter_islands() -> list[str]:
+    """Enumerate every distinct substring and count its islands directly."""
+    import itertools
+    import random
+
+    random.seed(11)
+    cases = []
+    for length in range(1, 8):
+        pool = ["".join(p) for p in itertools.product("ab", repeat=length)]
+        random.shuffle(pool)
+        for text in pool[:6]:
+            for k in range(1, length + 1):
+                cases.append((text, k))
+
+    problems = []
+    for text, k in cases:
+        actual = run("letter-islands", "%s\n%d\n" % (text, k))
+        substrings = {text[i:j] for i in range(len(text)) for j in range(i + 1, len(text) + 1)}
+        expected = sum(1 for sub in substrings if _islands(text, sub) == k)
+        if int(actual[0]) != expected:
+            problems.append("%r k=%d: expected %d, got %s" % (text, k, expected, actual[0]))
+    return problems
+
+
+# ---------------------------------------------------------------------------
+# Huarongdao
+# ---------------------------------------------------------------------------
+def _huarongdao_reference(board, cheat, query) -> int:
+    """Dijkstra over (Cao Cao cell, empty cell); no precomputation at all."""
+    import heapq
+
+    rows, columns = len(board), len(board[0])
+    def cell(r, c): return r * columns + c
+    def row_of(v): return v // columns
+    def col_of(v): return v % columns
+
+    empty = cell(query[0] - 1, query[1] - 1)
+    start = cell(query[2] - 1, query[3] - 1)
+    target = cell(query[4] - 1, query[5] - 1)
+
+    def neighbours(v):
+        r, c = row_of(v), col_of(v)
+        for dr, dc in ((-1, 0), (0, 1), (1, 0), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < columns and board[nr][nc] == 1:
+                yield cell(nr, nc)
+
+    best = {(start, empty): 0}
+    queue = [(0, start, empty)]
+    while queue:
+        cost, cao, hole = heapq.heappop(queue)
+        if best.get((cao, hole), -1) != cost:
+            continue
+        if cao == target:
+            return cost
+
+        for v in neighbours(hole):
+            nxt = (hole, v) if v == cao else (cao, v)
+            if cost + 1 < best.get(nxt, 1 << 30):
+                best[nxt] = cost + 1
+                heapq.heappush(queue, (cost + 1, nxt[0], nxt[1]))
+
+        for v in range(rows * columns):
+            if board[row_of(v)][col_of(v)] != 1 or v == cao or v == hole:
+                continue
+            nxt = (cao, v)
+            if cost + cheat < best.get(nxt, 1 << 30):
+                best[nxt] = cost + cheat
+                heapq.heappush(queue, (cost + cheat, nxt[0], nxt[1]))
+    return -1
+
+
+def check_huarongdao() -> list[str]:
+    import random
+
+    random.seed(5)
+    boards = [
+        [[1] * 3 for _ in range(3)],
+        [[1, 1, 1], [1, 0, 1], [1, 1, 1]],
+        [[1, 1], [1, 1]],
+        [[1] * 4 for _ in range(3)],
+    ]
+
+    problems = []
+    for board in boards:
+        rows, columns = len(board), len(board[0])
+        open_cells = [(r + 1, c + 1) for r in range(rows) for c in range(columns) if board[r][c] == 1]
+        for cheat in (3, 10):
+            for _ in range(4):
+                empty = random.choice(open_cells)
+                start = random.choice(open_cells)
+                target = random.choice(open_cells)
+                query = [empty[0], empty[1], start[0], start[1], target[0], target[1]]
+
+                stdin = "%d %d %d 1\n" % (rows, columns, cheat)
+                stdin += "\n".join(" ".join(str(v) for v in row) for row in board) + "\n"
+                stdin += " ".join(str(v) for v in query) + "\n"
+
+                actual = run("huarongdao", stdin)
+                expected = _huarongdao_reference(board, cheat, query)
+                if int(actual[0]) != expected:
+                    problems.append("board=%dx%d k=%d query=%s: expected %d, got %s"
+                                    % (rows, columns, cheat, query, expected, actual[0]))
+    return problems
+
+
 CHECKS = [
     ("sherlock-and-permutations", check_sherlock),
     ("even-odd-query", check_even_odd),
     ("special-multiple", check_special_multiple),
+    ("letter-islands", check_letter_islands),
+    ("huarongdao", check_huarongdao),
 ]
 
 

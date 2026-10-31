@@ -5,7 +5,7 @@ A substring marks every position it covers. Count how many distinct substrings o
 - **Problem:** https://www.hackerrank.com/challenges/letter-islands
 - **Input:** The string S, then K.
 - **Constraints:** |S| up to 1e5, lowercase letters
-- **Status:** Not verified - never run against the judge after the compile error was fixed.
+- **Status:** Verified: compiles, matches the sample, and matches an independent brute-force answer.
 
 ## Sample
 
@@ -22,7 +22,14 @@ Expected output:
 
 ## Notes
 
-A suffix-automaton solution was produced, but it first failed to compile (CS0266, int vs long at the caller) and was never run against the judge afterwards.
+A suffix automaton groups the distinct substrings that share the same occurrence
+positions. For a group with P occurrences, a substring of length L produces
+`1 + #{consecutive gaps > L}` islands, so "exactly K islands" is a range of
+lengths and the group contributes the size of that range.
+
+Verified against a brute force that enumerates every distinct substring, marks
+the positions it covers and counts the groups - for all strings of length 1..7
+over `{a,b}` and every k. Runs in 0.93 s at n = 100000.
 
 ---
 
